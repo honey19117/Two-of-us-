@@ -1,5 +1,7 @@
-package com.us.app
+﻿package com.us.app
 
+import android.content.Context
+import android.content.SharedPreferences
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -12,6 +14,8 @@ import java.util.UUID
 object LoveBrushRepository {
     private val auth by lazy { FirebaseAuth.getInstance() }
     private val db by lazy { FirebaseFirestore.getInstance() }
+    
+    private var prefs: SharedPreferences? = null
 
     private val _roomCode = MutableStateFlow<String?>(null)
     val roomCode: StateFlow<String?> = _roomCode
@@ -27,8 +31,18 @@ object LoveBrushRepository {
 
     private var roomListener: ListenerRegistration? = null
     
-    // UI state for overlay
     val showCanvas = MutableStateFlow(false)
+
+    fun initialize(context: Context) {
+        if (prefs == null) {
+            prefs = context.getSharedPreferences("LoveBrushPrefs", Context.MODE_PRIVATE)
+            val savedCode = prefs?.getString("ROOM_CODE", null)
+            if (savedCode != null) {
+                _roomCode.value = savedCode
+                listenToRoom(savedCode)
+            }
+        }
+    }
 
     suspend fun initAuth() {
         if (auth.currentUser == null) {
@@ -42,7 +56,7 @@ object LoveBrushRepository {
             val uid = auth.currentUser?.uid ?: throw Exception("Auth failed")
             val code = "LOVE-" + UUID.randomUUID().toString().substring(0, 4).uppercase()
             db.collection("rooms").document(code).set(mapOf("userA" to uid, "userB" to null)).await()
-            _roomCode.value = code
+            saveCode(code)
             listenToRoom(code)
         } catch (e: Exception) {
             _errorMessage.value = "Create Room Error:\n${e.stackTraceToString()}"
@@ -54,12 +68,17 @@ object LoveBrushRepository {
             initAuth()
             val uid = auth.currentUser?.uid ?: throw Exception("Auth failed")
             db.collection("rooms").document(code).update("userB", uid).await()
-            _roomCode.value = code
+            saveCode(code)
             _paired.value = true
             listenToRoom(code)
         } catch (e: Exception) {
-            _errorMessage.value = "Join Room Error: "
+            _errorMessage.value = "Join Room Error:\n${e.stackTraceToString()}"
         }
+    }
+    
+    private fun saveCode(code: String) {
+        _roomCode.value = code
+        prefs?.edit()?.putString("ROOM_CODE", code)?.apply()
     }
 
     private fun listenToRoom(code: String) {
@@ -69,11 +88,9 @@ object LoveBrushRepository {
                 val userB = snapshot.getString("userB")
                 if (userB != null) _paired.value = true
                 
-                // Parse incoming drawing
                 val lastMessage = snapshot.get("lastMessage") as? Map<String, Any>
                 if (lastMessage != null) {
                     val senderId = lastMessage["senderId"] as? String
-                    // Only show canvas if the OTHER person sent it
                     if (senderId != auth.currentUser?.uid) {
                         try {
                             val pathsList = lastMessage["paths"] as? List<Map<String, Any>> ?: emptyList()

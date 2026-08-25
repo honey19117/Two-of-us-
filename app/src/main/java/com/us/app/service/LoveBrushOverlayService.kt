@@ -1,9 +1,6 @@
-package com.us.app.service
+﻿package com.us.app.service
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
@@ -24,7 +21,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
-import androidx.core.app.NotificationCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -53,9 +49,12 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
 
     private lateinit var windowManager: WindowManager
     private var composeView: ComposeView? = null
+    private lateinit var params: WindowManager.LayoutParams
 
     override fun onCreate() {
         super.onCreate()
+        LoveBrushRepository.initialize(this) // VERY IMPORTANT: Restores Room Code if process died
+        
         savedStateRegistryController.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         
@@ -67,23 +66,9 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
     }
 
     private fun showOverlay() {
-        composeView = ComposeView(this).apply {
-            setViewTreeLifecycleOwner(this@LoveBrushOverlayService)
-            setViewTreeViewModelStoreOwner(this@LoveBrushOverlayService)
-            setViewTreeSavedStateRegistryOwner(this@LoveBrushOverlayService)
-            setContent {
-                val showCanvas by LoveBrushRepository.showCanvas.collectAsState()
-                if (showCanvas) {
-                    CanvasOverlay { LoveBrushRepository.showCanvas.value = false }
-                } else {
-                    FloatingBubble { LoveBrushRepository.showCanvas.value = true }
-                }
-            }
-        }
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
+        params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
@@ -91,6 +76,31 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
             gravity = Gravity.TOP or Gravity.START
         }
 
+        composeView = ComposeView(this).apply {
+            setViewTreeLifecycleOwner(this@LoveBrushOverlayService)
+            setViewTreeViewModelStoreOwner(this@LoveBrushOverlayService)
+            setViewTreeSavedStateRegistryOwner(this@LoveBrushOverlayService)
+            setContent {
+                val showCanvas by LoveBrushRepository.showCanvas.collectAsState()
+                
+                LaunchedEffect(showCanvas) {
+                    if (showCanvas) {
+                        params.width = WindowManager.LayoutParams.MATCH_PARENT
+                        params.height = WindowManager.LayoutParams.MATCH_PARENT
+                    } else {
+                        params.width = WindowManager.LayoutParams.WRAP_CONTENT
+                        params.height = WindowManager.LayoutParams.WRAP_CONTENT
+                    }
+                    windowManager.updateViewLayout(composeView, params)
+                }
+                
+                if (showCanvas) {
+                    CanvasOverlay { LoveBrushRepository.showCanvas.value = false }
+                } else {
+                    FloatingBubble { LoveBrushRepository.showCanvas.value = true }
+                }
+            }
+        }
         windowManager.addView(composeView, params)
     }
 
@@ -105,19 +115,16 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
 
 @Composable
 fun FloatingBubble(onClick: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(16.dp)
-                .size(60.dp)
-                .clip(CircleShape)
-                .background(Color.Red)
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Text("🖌️", style = MaterialTheme.typography.headlineMedium)
-        }
+    Box(
+        modifier = Modifier
+            .padding(16.dp)
+            .size(60.dp)
+            .clip(CircleShape)
+            .background(Color.Red)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text("🖌️", style = MaterialTheme.typography.headlineMedium)
     }
 }
 
