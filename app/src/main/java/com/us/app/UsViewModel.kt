@@ -14,8 +14,8 @@ import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
 class UsViewModel : ViewModel() {
-    private val auth = FirebaseAuth.getInstance()
-    private val db = FirebaseFirestore.getInstance()
+    private val auth by lazy { FirebaseAuth.getInstance() }
+    private val db by lazy { FirebaseFirestore.getInstance() }
 
     private val _roomCode = MutableStateFlow<String?>(null)
     val roomCode: StateFlow<String?> = _roomCode
