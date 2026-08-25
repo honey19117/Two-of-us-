@@ -1,4 +1,4 @@
-﻿package com.us.app
+package com.us.app
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -32,6 +32,7 @@ object LoveBrushRepository {
     private var roomListener: ListenerRegistration? = null
     
     val showCanvas = MutableStateFlow(false)
+    val hasNewMessage = MutableStateFlow(false)
 
     fun initialize(context: Context) {
         if (prefs == null) {
@@ -107,7 +108,7 @@ object LoveBrushRepository {
                                 StrokePath(points, color, strokeWidth)
                             }
                             _receivedPaths.value = parsedPaths
-                            showCanvas.value = true
+                            hasNewMessage.value = true
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }

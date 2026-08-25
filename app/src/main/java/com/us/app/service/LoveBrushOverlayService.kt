@@ -131,16 +131,32 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
 
 @Composable
 fun FloatingBubble(onClick: () -> Unit) {
+    val hasNewMessage by LoveBrushRepository.hasNewMessage.collectAsState()
+    
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (hasNewMessage) 1.3f else 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(500),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        )
+    )
+
     Box(
         modifier = Modifier
             .padding(16.dp)
             .size(60.dp)
+            .androidx.compose.ui.draw.scale(scale)
             .clip(CircleShape)
-            .background(Color.Red)
-            .clickable { onClick() },
+            .background(if (hasNewMessage) Color(0xFFFF4081) else Color.Red)
+            .clickable { 
+                LoveBrushRepository.hasNewMessage.value = false
+                onClick() 
+            },
         contentAlignment = Alignment.Center
     ) {
-        Text("🖌️", style = MaterialTheme.typography.headlineMedium)
+        Text(if (hasNewMessage) "❤️" else "🖌️", style = MaterialTheme.typography.headlineMedium)
     }
 }
 
