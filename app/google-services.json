@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "266043937894",
+    "project_id": "two-of-us-c359b",
+    "storage_bucket": "two-of-us-c359b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:266043937894:android:da6f1901f2d3db3b9ec9a7",
+        "android_client_info": {
+          "package_name": "com.us.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC496KPBdx8ugtPKjZe0jpQR5aUUH2QGv8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
