@@ -72,13 +72,18 @@ fun SetupScreen(onRequestPermission: () -> Unit, onStartOverlay: () -> Unit) {
             OutlinedTextField(value = joinCode, onValueChange = { joinCode = it }, label = { Text("Room Code") })
             Button(onClick = { scope.launch { LoveBrushRepository.joinRoom(joinCode) } }) { Text("Join Room") }
         } else {
-            Text("Room Code: ")
+            Text("Share this Room Code with your partner:", style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(roomCode ?: "", style = MaterialTheme.typography.displayLarge, color = Color.Red)
+            Spacer(modifier = Modifier.height(24.dp))
             if (paired) {
-                Text("Paired! ❤️")
+                Text("Paired! ❤️", style = MaterialTheme.typography.headlineMedium)
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = onStartOverlay) { Text("Launch Floating Brush") }
             } else {
-                Text("Waiting for partner...")
+                CircularProgressIndicator()
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Waiting for partner to join...", style = MaterialTheme.typography.bodyLarge)
             }
         }
     }
