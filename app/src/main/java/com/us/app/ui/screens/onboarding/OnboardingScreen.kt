@@ -12,6 +12,7 @@ import com.us.app.UsViewModel
 fun OnboardingScreen(viewModel: UsViewModel) {
     var joinCode by remember { mutableStateOf("") }
     val roomCode by viewModel.roomCode.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
 
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
@@ -20,6 +21,11 @@ fun OnboardingScreen(viewModel: UsViewModel) {
     ) {
         Text("Just you. Just me. Always connected.", style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(48.dp))
+        
+        errorMessage?.let { msg ->
+            Text(msg, color = MaterialTheme.colorScheme.error)
+            Spacer(modifier = Modifier.height(16.dp))
+        }
         
         if (roomCode == null) {
             Button(onClick = { viewModel.createRoom() }, modifier = Modifier.fillMaxWidth()) { Text("Create a Room") }

@@ -40,25 +40,46 @@ class UsViewModel : ViewModel() {
         }
     }
 
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage
+
     fun createRoom() {
         viewModelScope.launch {
-            val code = "LOVE-" + UUID.randomUUID().toString().substring(0, 4).uppercase()
-            val uid = auth.currentUser?.uid ?: return@launch
-            db.collection("rooms").document(code).set(
-                mapOf("userA" to uid, "userB" to null)
-            ).await()
-            _roomCode.value = code
-            listenToRoom(code)
+            try {
+                if (auth.currentUser == null) auth.signInAnonymously().await()
+                val uid = auth.currentUser?.uid
+                if (uid == null) {
+                    _errorMessage.value = "Failed to log in anonymously. Enable Anonymous Auth in Firebase."
+                    return@launch
+                }
+                val code = "LOVE-" + UUID.randomUUID().toString().substring(0, 4).uppercase()
+                db.collection("rooms").document(code).set(
+                    mapOf("userA" to uid, "userB" to null)
+                ).await()
+                _roomCode.value = code
+                listenToRoom(code)
+            } catch (e: Exception) {
+                _errorMessage.value = "Create Room Error: ${e.message}"
+            }
         }
     }
 
     fun joinRoom(code: String) {
         viewModelScope.launch {
-            val uid = auth.currentUser?.uid ?: return@launch
-            db.collection("rooms").document(code).update("userB", uid).await()
-            _roomCode.value = code
-            _paired.value = true
-            listenToRoom(code)
+            try {
+                if (auth.currentUser == null) auth.signInAnonymously().await()
+                val uid = auth.currentUser?.uid
+                if (uid == null) {
+                    _errorMessage.value = "Failed to log in anonymously."
+                    return@launch
+                }
+                db.collection("rooms").document(code).update("userB", uid).await()
+                _roomCode.value = code
+                _paired.value = true
+                listenToRoom(code)
+            } catch (e: Exception) {
+                _errorMessage.value = "Join Room Error: ${e.message}"
+            }
         }
     }
 
