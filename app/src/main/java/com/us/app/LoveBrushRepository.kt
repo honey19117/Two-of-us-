@@ -69,15 +69,60 @@ object LoveBrushRepository {
                 val userB = snapshot.getString("userB")
                 if (userB != null) _paired.value = true
                 
-                // Real app would parse the paths from snapshot here and set _receivedPaths
-                // and if new paths arrived, set showCanvas.value = true
+                // Parse incoming drawing
+                val lastMessage = snapshot.get("lastMessage") as? Map<String, Any>
+                if (lastMessage != null) {
+                    val senderId = lastMessage["senderId"] as? String
+                    // Only show canvas if the OTHER person sent it
+                    if (senderId != auth.currentUser?.uid) {
+                        try {
+                            val pathsList = lastMessage["paths"] as? List<Map<String, Any>> ?: emptyList()
+                            val parsedPaths = pathsList.map { pathMap ->
+                                val color = (pathMap["color"] as? Number)?.toInt() ?: 0xFF333333.toInt()
+                                val strokeWidth = (pathMap["strokeWidth"] as? Number)?.toFloat() ?: 5f
+                                val pointsList = pathMap["points"] as? List<Map<String, Number>> ?: emptyList()
+                                val points = pointsList.map { ptMap ->
+                                    com.us.app.data.model.Point(
+                                        ptMap["x"]?.toFloat() ?: 0f, 
+                                        ptMap["y"]?.toFloat() ?: 0f
+                                    )
+                                }
+                                StrokePath(points, color, strokeWidth)
+                            }
+                            _receivedPaths.value = parsedPaths
+                            showCanvas.value = true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
             }
         }
     }
     
     suspend fun sendDrawing(paths: List<StrokePath>) {
         val code = _roomCode.value ?: return
-        // Real app would upload paths here
-        showCanvas.value = false
+        val uid = auth.currentUser?.uid ?: return
+        
+        try {
+            val pathsMapList = paths.map { path ->
+                mapOf(
+                    "color" to path.color,
+                    "strokeWidth" to path.strokeWidth,
+                    "points" to path.points.map { pt -> mapOf("x" to pt.x, "y" to pt.y) }
+                )
+            }
+            
+            val messageMap = mapOf(
+                "senderId" to uid,
+                "timestamp" to System.currentTimeMillis(),
+                "paths" to pathsMapList
+            )
+            
+            db.collection("rooms").document(code).update("lastMessage", messageMap).await()
+            showCanvas.value = false
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }

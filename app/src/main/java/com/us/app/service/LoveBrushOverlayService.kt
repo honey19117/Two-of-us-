@@ -140,17 +140,70 @@ fun FloatingBubble(onClick: () -> Unit) {
 
 @Composable
 fun CanvasOverlay(onClose: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.9f))) {
+    val receivedPaths by LoveBrushRepository.receivedPaths.collectAsState()
+    var currentPaths by remember { mutableStateOf<List<com.us.app.data.model.StrokePath>>(emptyList()) }
+    var currentPath by remember { mutableStateOf<com.us.app.data.model.StrokePath?>(null) }
+    val scope = rememberCoroutineScope()
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.8f))) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.fillMaxWidth().padding(32.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Button(onClick = onClose) { Text("Close") }
+                Button(onClick = onClose) { Text("Hide") }
+                Button(onClick = { currentPaths = emptyList() }) { Text("Clear") }
                 Button(onClick = { 
-                    CoroutineScope(Dispatchers.IO).launch { LoveBrushRepository.sendDrawing(emptyList()) }
+                    scope.launch { 
+                        LoveBrushRepository.sendDrawing(currentPaths)
+                        currentPaths = emptyList()
+                    }
                 }) { Text("Send ❤️") }
             }
-            Box(modifier = Modifier.weight(1f).fillMaxWidth().pointerInput(Unit) {
-                detectDragGestures { _, _ -> /* Draw logic here */ }
-            })
+            
+            androidx.compose.foundation.Canvas(
+                modifier = Modifier.weight(1f).fillMaxWidth().pointerInput(Unit) {
+                    androidx.compose.foundation.gestures.detectDragGestures(
+                        onDragStart = { offset -> 
+                            currentPath = com.us.app.data.model.StrokePath(points = listOf(com.us.app.data.model.Point(offset.x, offset.y))) 
+                        },
+                        onDrag = { change, _ -> 
+                            currentPath = currentPath?.copy(points = currentPath!!.points + com.us.app.data.model.Point(change.position.x, change.position.y)) 
+                        },
+                        onDragEnd = { 
+                            currentPath?.let { currentPaths = currentPaths + it }
+                            currentPath = null 
+                        }
+                    )
+                }
+            ) {
+                // Draw received paths
+                receivedPaths.forEach { strokePath ->
+                    val path = androidx.compose.ui.graphics.Path()
+                    if (strokePath.points.isNotEmpty()) {
+                        path.moveTo(strokePath.points.first().x, strokePath.points.first().y)
+                        strokePath.points.drop(1).forEach { pt -> path.lineTo(pt.x, pt.y) }
+                        drawPath(path = path, color = Color(strokePath.color), style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePath.strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                    }
+                }
+
+                // Draw my paths
+                currentPaths.forEach { strokePath ->
+                    val path = androidx.compose.ui.graphics.Path()
+                    if (strokePath.points.isNotEmpty()) {
+                        path.moveTo(strokePath.points.first().x, strokePath.points.first().y)
+                        strokePath.points.drop(1).forEach { pt -> path.lineTo(pt.x, pt.y) }
+                        drawPath(path = path, color = Color.Red, style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePath.strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                    }
+                }
+                
+                // Draw current stroke
+                currentPath?.let { strokePath ->
+                    val path = androidx.compose.ui.graphics.Path()
+                    if (strokePath.points.isNotEmpty()) {
+                        path.moveTo(strokePath.points.first().x, strokePath.points.first().y)
+                        strokePath.points.drop(1).forEach { pt -> path.lineTo(pt.x, pt.y) }
+                        drawPath(path = path, color = Color.Red, style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePath.strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                    }
+                }
+            }
         }
     }
 }
