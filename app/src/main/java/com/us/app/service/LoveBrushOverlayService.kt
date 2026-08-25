@@ -59,28 +59,11 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
         savedStateRegistryController.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         
-        startForegroundService()
-        
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         showOverlay()
         
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-    }
-
-    private fun startForegroundService() {
-        val channelId = "overlay_service"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "Love Brush", NotificationManager.IMPORTANCE_LOW)
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
-        val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Love Brush Active")
-            .setContentText("Tap the floating brush to draw.")
-            .setSmallIcon(android.R.drawable.sym_def_app_icon)
-            .build()
-        startForeground(1, notification)
     }
 
     private fun showOverlay() {
