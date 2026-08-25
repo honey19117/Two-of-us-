@@ -160,11 +160,11 @@ fun CanvasOverlay(onClose: () -> Unit) {
             
             androidx.compose.foundation.Canvas(
                 modifier = Modifier.weight(1f).fillMaxWidth().pointerInput(Unit) {
-                    androidx.compose.foundation.gestures.detectDragGestures(
-                        onDragStart = { offset -> 
+                    detectDragGestures(
+                        onDragStart = { offset: androidx.compose.ui.geometry.Offset -> 
                             currentPath = com.us.app.data.model.StrokePath(points = listOf(com.us.app.data.model.Point(offset.x, offset.y))) 
                         },
-                        onDrag = { change, _ -> 
+                        onDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, _: androidx.compose.ui.geometry.Offset -> 
                             currentPath = currentPath?.copy(points = currentPath!!.points + com.us.app.data.model.Point(change.position.x, change.position.y)) 
                         },
                         onDragEnd = { 
