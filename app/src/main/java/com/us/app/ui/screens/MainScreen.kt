@@ -12,11 +12,25 @@ import com.us.app.ui.screens.settings.SettingsScreen
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
-    // Simple routing
     NavHost(navController = navController, startDestination = "onboarding") {
-        composable("onboarding") { OnboardingScreen(navController) }
-        composable("home") { HomeScreen(navController) }
-        composable("canvas") { CanvasScreen(navController) }
-        composable("settings") { SettingsScreen(navController) }
+        composable("onboarding") { 
+            OnboardingScreen(navController) 
+        }
+        composable("home") { 
+            HomeScreen(
+                onNavigateToCanvas = { navController.navigate("canvas") },
+                onNavigateToSettings = { navController.navigate("settings") }
+            ) 
+        }
+        composable("canvas") { 
+            CanvasScreen(onSend = { navController.navigateUp() }) 
+        }
+        composable("settings") { 
+            SettingsScreen(onUnpair = { 
+                navController.navigate("onboarding") {
+                    popUpTo(0)
+                }
+            }) 
+        }
     }
 }

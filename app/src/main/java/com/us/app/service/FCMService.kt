@@ -74,14 +74,14 @@ class FCMService : FirebaseMessagingService() {
 
         // Use BigPictureStyle to show the ACTUAL handwriting in the lock screen/notification
         val notification = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(android.R.drawable.sym_def_app_icon)
             .setContentTitle("Your person sent you something ❤️")
             .setContentText("Expand to see their handwriting")
             .setLargeIcon(bitmap)
             .setStyle(NotificationCompat.BigPictureStyle()
                 .bigPicture(bitmap)
                 .bigLargeIcon(null as Bitmap?)) // Hide large icon when expanded
-            .addAction(R.mipmap.ic_launcher, "Reply ❤️", replyPendingIntent)
+            .addAction(android.R.drawable.sym_def_app_icon, "Reply ❤️", replyPendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
