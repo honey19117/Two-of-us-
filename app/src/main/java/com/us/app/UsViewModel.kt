@@ -30,8 +30,12 @@ class UsViewModel : ViewModel() {
 
     init {
         viewModelScope.launch {
-            if (auth.currentUser == null) {
-                auth.signInAnonymously().await()
+            try {
+                if (auth.currentUser == null) {
+                    auth.signInAnonymously().await()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
