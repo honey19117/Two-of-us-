@@ -1,4 +1,4 @@
-﻿package com.us.app.service
+package com.us.app.service
 
 import android.app.Service
 import android.content.Intent
@@ -58,11 +58,27 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
         savedStateRegistryController.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         
+        startForegroundService()
+
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         showOverlay()
         
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    }
+
+    private fun startForegroundService() {
+        val channelId = "overlay_service"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = android.app.NotificationChannel(channelId, "Love Brush", android.app.NotificationManager.IMPORTANCE_LOW)
+            getSystemService(android.app.NotificationManager::class.java).createNotificationChannel(channel)
+        }
+        val notification = androidx.core.app.NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Love Brush")
+            .setContentText("Listening for drawings...")
+            .setSmallIcon(android.R.drawable.sym_def_app_icon)
+            .build()
+        startForeground(1, notification)
     }
 
     private fun showOverlay() {

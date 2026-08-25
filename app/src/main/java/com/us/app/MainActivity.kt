@@ -35,7 +35,11 @@ class MainActivity : ComponentActivity() {
                         onStartOverlay = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
                                 val intent = Intent(this, LoveBrushOverlayService::class.java)
-                                startService(intent)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    startForegroundService(intent)
+                                } else {
+                                    startService(intent)
+                                }
                                 finish() // Close the app, overlay takes over
                             }
                         }
