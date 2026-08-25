@@ -45,7 +45,7 @@ object LoveBrushRepository {
             _roomCode.value = code
             listenToRoom(code)
         } catch (e: Exception) {
-            _errorMessage.value = "Create Room Error: "
+            _errorMessage.value = "Create Room Error:\n${e.stackTraceToString()}"
         }
     }
 
