@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -134,14 +135,13 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
 fun FloatingBubble(onClick: () -> Unit) {
     val hasNewMessage by LoveBrushRepository.hasNewMessage.collectAsState()
     
-    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
-    val scale by androidx.compose.animation.core.animateFloat(
-        infiniteTransition,
+    val infiniteTransition = rememberInfiniteTransition()
+    val scale by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = if (hasNewMessage) 1.3f else 1f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(500),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        animationSpec = infiniteRepeatable(
+            animation = tween(500),
+            repeatMode = RepeatMode.Reverse
         ),
         label = "heartbeat"
     )
