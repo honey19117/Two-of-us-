@@ -13,9 +13,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -114,10 +116,9 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
             setViewTreeSavedStateRegistryOwner(this@LoveBrushOverlayService)
             setContent {
                 val showCanvas by LoveBrushRepository.showCanvas.collectAsState()
-                val showInbox by LoveBrushRepository.showInbox.collectAsState()
                 
-                LaunchedEffect(showCanvas, showInbox) {
-                    if (showCanvas || showInbox) {
+                LaunchedEffect(showCanvas) {
+                    if (showCanvas) {
                         params.width = WindowManager.LayoutParams.MATCH_PARENT
                         params.height = WindowManager.LayoutParams.MATCH_PARENT
                     } else {
@@ -128,11 +129,9 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
                 }
                 
                 if (showCanvas) {
-                    CanvasOverlay { LoveBrushRepository.showCanvas.value = false }
-                } else if (showInbox) {
-                    InboxOverlay { LoveBrushRepository.showInbox.value = false }
+                    MainAppOverlay { LoveBrushRepository.showCanvas.value = false }
                 } else {
-                    FloatingBubble { LoveBrushRepository.showInbox.value = true }
+                    FloatingBubble { LoveBrushRepository.showCanvas.value = true }
                 }
             }
         }
@@ -175,7 +174,7 @@ fun FloatingBubble(onClick: () -> Unit) {
                     colors = if (hasNewMessage) listOf(Color(0xFFFF8A80), Color(0xFFFF1744)) else listOf(Color(0xFFFF5252), Color(0xFFD50000))
                 )
             )
-            .clickable { onClick() },
+            .clickable { onClick() }, // Keep it blinking until they actually open and view it!
         contentAlignment = Alignment.Center
     ) {
         Text(if (hasNewMessage) "💖" else "🖌️", fontSize = 28.sp)
@@ -183,108 +182,49 @@ fun FloatingBubble(onClick: () -> Unit) {
 }
 
 @Composable
-fun InboxOverlay(onClose: () -> Unit) {
-    val inbox by LoveBrushRepository.inbox.collectAsState()
-    val scope = rememberCoroutineScope()
+fun MainAppOverlay(onClose: () -> Unit) {
+    val hasNewMessage by LoveBrushRepository.hasNewMessage.collectAsState()
+    var selectedTab by remember { mutableStateOf(if (hasNewMessage) "INBOX" else "DRAW") }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.95f))) {
         Column(modifier = Modifier.fillMaxSize()) {
             
-            // Header
+            // Top Navigation Bar
             Row(
-                modifier = Modifier.fillMaxWidth().padding(32.dp), 
+                modifier = Modifier.fillMaxWidth().padding(top = 32.dp, start = 16.dp, end = 16.dp, bottom = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Love Letters 💌", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color(0xFFE91E63))
                 Surface(
                     shape = CircleShape, 
                     color = Color.White, 
                     shadowElevation = 8.dp,
                     modifier = Modifier.clickable { onClose() }
                 ) {
-                    Text("✖", modifier = Modifier.padding(16.dp), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                    Text("✖", modifier = Modifier.padding(12.dp), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                 }
-            }
-            
-            // Inbox Grid
-            if (inbox.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No drawings yet...", color = Color.Gray, fontSize = 18.sp)
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.weight(1f)
+                
+                // Tabs
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Color(0xFFF5F5F5),
+                    shadowElevation = 4.dp
                 ) {
-                    items(inbox) { message ->
-                        val dateString = SimpleDateFormat("MMM dd, h:mm a", Locale.getDefault()).format(Date(message.timestamp))
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                            colors = CardDefaults.cardColors(containerColor = if (message.seen) Color.White else Color(0xFFFFF0F5)),
-                            modifier = Modifier
-                                .height(200.dp)
-                                .clickable {
-                                    scope.launch { LoveBrushRepository.markAsRead(message.messageId) }
-                                    LoveBrushRepository.viewMessage(message)
-                                }
-                        ) {
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                // Mini Canvas Preview
-                                Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color.White).padding(8.dp)) {
-                                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                                        // Scale down drawing to fit thumbnail
-                                        scale(0.3f, 0.3f) {
-                                            message.paths.forEach { strokePath ->
-                                                val path = androidx.compose.ui.graphics.Path()
-                                                if (strokePath.points.isNotEmpty()) {
-                                                    path.moveTo(strokePath.points.first().x, strokePath.points.first().y)
-                                                    strokePath.points.drop(1).forEach { pt -> path.lineTo(pt.x, pt.y) }
-                                                    drawPath(path = path, color = Color(strokePath.color), style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePath.strokeWidth * 3, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                // Timestamp Footer
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().background(if (message.seen) Color(0xFFF5F5F5) else Color(0xFFFFB6C1)).padding(8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(dateString, fontSize = 12.sp, color = if (message.seen) Color.Gray else Color.White, fontWeight = FontWeight.Bold)
-                                    if (!message.seen) {
-                                        Text("NEW", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
-                                    }
-                                }
-                            }
+                    Row(modifier = Modifier.padding(4.dp)) {
+                        TabButton("🖌️ Draw", selectedTab == "DRAW") { selectedTab = "DRAW" }
+                        TabButton(if (hasNewMessage) "💌 Love Letters 🔴" else "💌 Love Letters", selectedTab == "INBOX") { 
+                            selectedTab = "INBOX" 
                         }
                     }
                 }
             }
-            
-            // Compose New Button
-            Button(
-                onClick = { 
-                    LoveBrushRepository.clearCanvasLocally()
-                    LoveBrushRepository.showInbox.value = false
-                    LoveBrushRepository.showCanvas.value = true
-                },
-                modifier = Modifier.fillMaxWidth().padding(32.dp).height(60.dp).shadow(12.dp, RoundedCornerShape(50)),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                contentPadding = PaddingValues(0.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Brush.horizontalGradient(listOf(Color(0xFFFF4081), Color(0xFFE91E63), Color(0xFFC2185B))))
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("Compose New Drawing 🖌️", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+
+            // Content Area
+            Box(modifier = Modifier.weight(1f)) {
+                if (selectedTab == "DRAW") {
+                    ComposeDrawView()
+                } else {
+                    InboxGalleryView { selectedTab = "DRAW" }
                 }
             }
         }
@@ -292,19 +232,47 @@ fun InboxOverlay(onClose: () -> Unit) {
 }
 
 @Composable
-fun CanvasOverlay(onClose: () -> Unit) {
+fun TabButton(text: String, isSelected: Boolean, onClick: () -> Unit) {
+    val bgColor = if (isSelected) Color(0xFFFF4081) else Color.Transparent
+    val textColor = if (isSelected) Color.White else Color.Gray
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(bgColor)
+            .clickable { onClick() }
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+    ) {
+        Text(text, color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+    }
+}
+
+@Composable
+fun ComposeDrawView() {
     val receivedPaths by LoveBrushRepository.receivedPaths.collectAsState()
     var currentPaths by remember { mutableStateOf<List<com.us.app.data.model.StrokePath>>(emptyList()) }
     var currentPath by remember { mutableStateOf<com.us.app.data.model.StrokePath?>(null) }
     
-    val colors = listOf(Color.Red, Color(0xFFFF4081), Color(0xFF9C27B0), Color(0xFF3F51B5), Color.Black)
-    var selectedColor by remember { mutableStateOf(colors[0]) }
+    // A massive expanded color palette!
+    val allColors = listOf(
+        Color.Black, Color.DarkGray, Color.Gray,
+        Color(0xFFD50000), Color.Red, Color(0xFFFF5252), // Reds
+        Color(0xFFC51162), Color(0xFFFF4081), Color(0xFFFF80AB), // Pinks
+        Color(0xFFAA00FF), Color(0xFFE040FB), Color(0xFFEA80FC), // Purples
+        Color(0xFF6200EA), Color(0xFF7C4DFF), Color(0xFFB388FF), // Deep Purples
+        Color(0xFF2962FF), Color(0xFF448AFF), Color(0xFF82B1FF), // Blues
+        Color(0xFF00BFA5), Color(0xFF64FFDA), // Teals
+        Color(0xFF00C853), Color(0xFF69F0AE), // Greens
+        Color(0xFFFFD600), Color(0xFFFFFF00), // Yellows
+        Color(0xFFFF6D00), Color(0xFFFFAB40)  // Oranges
+    )
+    var selectedColor by remember { mutableStateOf(allColors[4]) } // Default Red
     
     val scope = rememberCoroutineScope()
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.90f))) {
+    Box(modifier = Modifier.fillMaxSize()) {
         
-        // Canvas for drawing
+        // The Drawing Canvas
         androidx.compose.foundation.Canvas(
             modifier = Modifier.fillMaxSize().pointerInput(Unit) {
                 detectDragGestures(
@@ -324,7 +292,7 @@ fun CanvasOverlay(onClose: () -> Unit) {
                 )
             }
         ) {
-            // Draw received paths
+            // Draw Partner's Paths
             receivedPaths.forEach { strokePath ->
                 val path = androidx.compose.ui.graphics.Path()
                 if (strokePath.points.isNotEmpty()) {
@@ -334,7 +302,7 @@ fun CanvasOverlay(onClose: () -> Unit) {
                 }
             }
 
-            // Draw my paths
+            // Draw My Paths
             currentPaths.forEach { strokePath ->
                 val path = androidx.compose.ui.graphics.Path()
                 if (strokePath.points.isNotEmpty()) {
@@ -344,7 +312,7 @@ fun CanvasOverlay(onClose: () -> Unit) {
                 }
             }
             
-            // Draw current stroke
+            // Draw Current Stroke
             currentPath?.let { strokePath ->
                 val path = androidx.compose.ui.graphics.Path()
                 if (strokePath.points.isNotEmpty()) {
@@ -355,21 +323,13 @@ fun CanvasOverlay(onClose: () -> Unit) {
             }
         }
 
-        // Toolbar Top (Clear & Close)
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(32.dp), 
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Toolbar Bottom
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter).padding(24.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Surface(
-                shape = CircleShape, 
-                color = Color.White, 
-                shadowElevation = 8.dp,
-                modifier = Modifier.clickable { onClose() }
-            ) {
-                Text("✖", modifier = Modifier.padding(16.dp), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-            }
             
+            // Clear Button
             Surface(
                 shape = RoundedCornerShape(50), 
                 color = Color.White, 
@@ -377,32 +337,29 @@ fun CanvasOverlay(onClose: () -> Unit) {
                 modifier = Modifier.clickable { 
                     currentPaths = emptyList() 
                     LoveBrushRepository.clearCanvasLocally()
-                }
+                }.padding(bottom = 16.dp).align(Alignment.End)
             ) {
-                Text("🧹 Clear Canvas", modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), fontWeight = FontWeight.Bold, color = Color.Red)
+                Text("🧹 Clear All", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), fontWeight = FontWeight.Bold, color = Color.Gray)
             }
-        }
 
-        // Toolbar Bottom (Colors & Send)
-        Column(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(32.dp).fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Color Palette
+            // Scrollable Extended Color Palette
             Surface(
                 shape = RoundedCornerShape(50), 
                 color = Color.White, 
                 shadowElevation = 12.dp,
-                modifier = Modifier.padding(bottom = 24.dp)
+                modifier = Modifier.padding(bottom = 24.dp).fillMaxWidth()
             ) {
-                Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    colors.forEach { c ->
+                LazyRow(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(allColors) { c ->
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
                                 .background(c)
-                                .border(width = if (selectedColor == c) 3.dp else 0.dp, color = if (selectedColor == c) Color.Gray else Color.Transparent, shape = CircleShape)
+                                .border(width = if (selectedColor == c) 4.dp else 0.dp, color = if (selectedColor == c) Color.Black else Color.Transparent, shape = CircleShape)
                                 .clickable { selectedColor = c }
                         )
                     }
@@ -429,6 +386,72 @@ fun CanvasOverlay(onClose: () -> Unit) {
                     contentAlignment = Alignment.Center
                 ) {
                     Text("Send to Partner 💌", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun InboxGalleryView(onReply: () -> Unit) {
+    val inbox by LoveBrushRepository.inbox.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (inbox.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No drawings yet...", color = Color.Gray, fontSize = 18.sp)
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                contentPadding = PaddingValues(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(inbox) { message ->
+                    val dateString = SimpleDateFormat("MMM dd, h:mm a", Locale.getDefault()).format(Date(message.timestamp))
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                        colors = CardDefaults.cardColors(containerColor = if (message.seen) Color.White else Color(0xFFFFF0F5)),
+                        modifier = Modifier
+                            .height(200.dp)
+                            .clickable {
+                                scope.launch { LoveBrushRepository.markAsRead(message.messageId) }
+                                LoveBrushRepository.viewMessage(message)
+                                onReply() // Switch back to draw tab so they can see the message full screen
+                            }
+                    ) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // Mini Canvas Preview
+                            Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color.White).padding(8.dp)) {
+                                androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                                    scale(0.3f, 0.3f) {
+                                        message.paths.forEach { strokePath ->
+                                            val path = androidx.compose.ui.graphics.Path()
+                                            if (strokePath.points.isNotEmpty()) {
+                                                path.moveTo(strokePath.points.first().x, strokePath.points.first().y)
+                                                strokePath.points.drop(1).forEach { pt -> path.lineTo(pt.x, pt.y) }
+                                                drawPath(path = path, color = Color(strokePath.color), style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePath.strokeWidth * 3, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            // Timestamp Footer
+                            Row(
+                                modifier = Modifier.fillMaxWidth().background(if (message.seen) Color(0xFFF5F5F5) else Color(0xFFFFB6C1)).padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(dateString, fontSize = 12.sp, color = if (message.seen) Color.Gray else Color.White, fontWeight = FontWeight.Bold)
+                                if (!message.seen) {
+                                    Text("NEW", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
