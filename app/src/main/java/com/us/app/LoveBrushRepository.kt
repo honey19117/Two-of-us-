@@ -143,4 +143,8 @@ object LoveBrushRepository {
             e.printStackTrace()
         }
     }
+    
+    fun clearCanvasLocally() {
+        _receivedPaths.value = emptyList()
+    }
 }

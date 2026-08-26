@@ -9,20 +9,27 @@ import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -149,17 +156,22 @@ fun FloatingBubble(onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .padding(16.dp)
-            .size(60.dp)
+            .size(65.dp)
             .scale(scale)
+            .shadow(12.dp, CircleShape)
             .clip(CircleShape)
-            .background(if (hasNewMessage) Color(0xFFFF4081) else Color.Red)
+            .background(
+                Brush.radialGradient(
+                    colors = if (hasNewMessage) listOf(Color(0xFFFF8A80), Color(0xFFFF1744)) else listOf(Color(0xFFFF5252), Color(0xFFD50000))
+                )
+            )
             .clickable { 
                 LoveBrushRepository.hasNewMessage.value = false
                 onClick() 
             },
         contentAlignment = Alignment.Center
     ) {
-        Text(if (hasNewMessage) "❤️" else "🖌️", style = MaterialTheme.typography.headlineMedium)
+        Text(if (hasNewMessage) "💖" else "🖌️", fontSize = 28.sp)
     }
 }
 
@@ -168,65 +180,139 @@ fun CanvasOverlay(onClose: () -> Unit) {
     val receivedPaths by LoveBrushRepository.receivedPaths.collectAsState()
     var currentPaths by remember { mutableStateOf<List<com.us.app.data.model.StrokePath>>(emptyList()) }
     var currentPath by remember { mutableStateOf<com.us.app.data.model.StrokePath?>(null) }
+    
+    val colors = listOf(Color.Red, Color(0xFFFF4081), Color(0xFF9C27B0), Color(0xFF3F51B5), Color.Black)
+    var selectedColor by remember { mutableStateOf(colors[0]) }
+    
     val scope = rememberCoroutineScope()
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.8f))) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(modifier = Modifier.fillMaxWidth().padding(32.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Button(onClick = onClose) { Text("Hide") }
-                Button(onClick = { currentPaths = emptyList() }) { Text("Clear") }
-                Button(onClick = { 
+    Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.90f))) {
+        
+        // Canvas for drawing
+        androidx.compose.foundation.Canvas(
+            modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { offset: androidx.compose.ui.geometry.Offset -> 
+                        currentPath = com.us.app.data.model.StrokePath(
+                            points = listOf(com.us.app.data.model.Point(offset.x, offset.y)),
+                            color = selectedColor.toArgb()
+                        ) 
+                    },
+                    onDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, _: androidx.compose.ui.geometry.Offset -> 
+                        currentPath = currentPath?.copy(points = currentPath!!.points + com.us.app.data.model.Point(change.position.x, change.position.y)) 
+                    },
+                    onDragEnd = { 
+                        currentPath?.let { currentPaths = currentPaths + it }
+                        currentPath = null 
+                    }
+                )
+            }
+        ) {
+            // Draw received paths
+            receivedPaths.forEach { strokePath ->
+                val path = androidx.compose.ui.graphics.Path()
+                if (strokePath.points.isNotEmpty()) {
+                    path.moveTo(strokePath.points.first().x, strokePath.points.first().y)
+                    strokePath.points.drop(1).forEach { pt -> path.lineTo(pt.x, pt.y) }
+                    drawPath(path = path, color = Color(strokePath.color), style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePath.strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                }
+            }
+
+            // Draw my paths
+            currentPaths.forEach { strokePath ->
+                val path = androidx.compose.ui.graphics.Path()
+                if (strokePath.points.isNotEmpty()) {
+                    path.moveTo(strokePath.points.first().x, strokePath.points.first().y)
+                    strokePath.points.drop(1).forEach { pt -> path.lineTo(pt.x, pt.y) }
+                    drawPath(path = path, color = Color(strokePath.color), style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePath.strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                }
+            }
+            
+            // Draw current stroke
+            currentPath?.let { strokePath ->
+                val path = androidx.compose.ui.graphics.Path()
+                if (strokePath.points.isNotEmpty()) {
+                    path.moveTo(strokePath.points.first().x, strokePath.points.first().y)
+                    strokePath.points.drop(1).forEach { pt -> path.lineTo(pt.x, pt.y) }
+                    drawPath(path = path, color = Color(strokePath.color), style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePath.strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                }
+            }
+        }
+
+        // Toolbar Top (Clear & Close)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(32.dp), 
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = CircleShape, 
+                color = Color.White, 
+                shadowElevation = 8.dp,
+                modifier = Modifier.clickable { onClose() }
+            ) {
+                Text("✖", modifier = Modifier.padding(16.dp), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+            }
+            
+            Surface(
+                shape = RoundedCornerShape(50), 
+                color = Color.White, 
+                shadowElevation = 8.dp,
+                modifier = Modifier.clickable { 
+                    currentPaths = emptyList() 
+                    LoveBrushRepository.clearCanvasLocally()
+                }
+            ) {
+                Text("🧹 Clear Canvas", modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), fontWeight = FontWeight.Bold, color = Color.Red)
+            }
+        }
+
+        // Toolbar Bottom (Colors & Send)
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter).padding(32.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Color Palette
+            Surface(
+                shape = RoundedCornerShape(50), 
+                color = Color.White, 
+                shadowElevation = 12.dp,
+                modifier = Modifier.padding(bottom = 24.dp)
+            ) {
+                Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    colors.forEach { c ->
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(c)
+                                .border(width = if (selectedColor == c) 3.dp else 0.dp, color = if (selectedColor == c) Color.Gray else Color.Transparent, shape = CircleShape)
+                                .clickable { selectedColor = c }
+                        )
+                    }
+                }
+            }
+            
+            // Send Button
+            Button(
+                onClick = { 
                     scope.launch { 
                         LoveBrushRepository.sendDrawing(currentPaths)
                         currentPaths = emptyList()
                     }
-                }) { Text("Send ❤️") }
-            }
-            
-            androidx.compose.foundation.Canvas(
-                modifier = Modifier.weight(1f).fillMaxWidth().pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { offset: androidx.compose.ui.geometry.Offset -> 
-                            currentPath = com.us.app.data.model.StrokePath(points = listOf(com.us.app.data.model.Point(offset.x, offset.y))) 
-                        },
-                        onDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, _: androidx.compose.ui.geometry.Offset -> 
-                            currentPath = currentPath?.copy(points = currentPath!!.points + com.us.app.data.model.Point(change.position.x, change.position.y)) 
-                        },
-                        onDragEnd = { 
-                            currentPath?.let { currentPaths = currentPaths + it }
-                            currentPath = null 
-                        }
-                    )
-                }
+                },
+                modifier = Modifier.fillMaxWidth().height(60.dp).shadow(12.dp, RoundedCornerShape(50)),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                contentPadding = PaddingValues(0.dp)
             ) {
-                // Draw received paths
-                receivedPaths.forEach { strokePath ->
-                    val path = androidx.compose.ui.graphics.Path()
-                    if (strokePath.points.isNotEmpty()) {
-                        path.moveTo(strokePath.points.first().x, strokePath.points.first().y)
-                        strokePath.points.drop(1).forEach { pt -> path.lineTo(pt.x, pt.y) }
-                        drawPath(path = path, color = Color(strokePath.color), style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePath.strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-                    }
-                }
-
-                // Draw my paths
-                currentPaths.forEach { strokePath ->
-                    val path = androidx.compose.ui.graphics.Path()
-                    if (strokePath.points.isNotEmpty()) {
-                        path.moveTo(strokePath.points.first().x, strokePath.points.first().y)
-                        strokePath.points.drop(1).forEach { pt -> path.lineTo(pt.x, pt.y) }
-                        drawPath(path = path, color = Color.Red, style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePath.strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-                    }
-                }
-                
-                // Draw current stroke
-                currentPath?.let { strokePath ->
-                    val path = androidx.compose.ui.graphics.Path()
-                    if (strokePath.points.isNotEmpty()) {
-                        path.moveTo(strokePath.points.first().x, strokePath.points.first().y)
-                        strokePath.points.drop(1).forEach { pt -> path.lineTo(pt.x, pt.y) }
-                        drawPath(path = path, color = Color.Red, style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePath.strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-                    }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Brush.horizontalGradient(listOf(Color(0xFFFF4081), Color(0xFFE91E63), Color(0xFFC2185B))))
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Send to Partner 💌", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
         }
