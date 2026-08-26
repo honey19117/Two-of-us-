@@ -236,8 +236,8 @@ fun InboxOverlay(onClose: () -> Unit) {
                                 // Mini Canvas Preview
                                 Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color.White).padding(8.dp)) {
                                     androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                                        // Scale down drawing to fit thumbnail (approximate, assume drawing was 1080x1920)
-                                        scale(0.3f, 0.3f) {
+                                        // Scale down drawing to fit thumbnail
+                                        androidx.compose.ui.graphics.drawscope.scale(0.3f, 0.3f) {
                                             message.paths.forEach { strokePath ->
                                                 val path = androidx.compose.ui.graphics.Path()
                                                 if (strokePath.points.isNotEmpty()) {
