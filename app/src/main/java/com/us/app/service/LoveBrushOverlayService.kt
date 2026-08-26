@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.font.FontWeight
@@ -237,7 +238,7 @@ fun InboxOverlay(onClose: () -> Unit) {
                                 Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color.White).padding(8.dp)) {
                                     androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
                                         // Scale down drawing to fit thumbnail
-                                        androidx.compose.ui.graphics.drawscope.scale(0.3f, 0.3f) {
+                                        scale(0.3f, 0.3f) {
                                             message.paths.forEach { strokePath ->
                                                 val path = androidx.compose.ui.graphics.Path()
                                                 if (strokePath.points.isNotEmpty()) {
