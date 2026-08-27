@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -108,6 +109,8 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 100
         }
 
         composeView = ComposeView(this).apply {
@@ -121,9 +124,11 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
                     if (showCanvas) {
                         params.width = WindowManager.LayoutParams.MATCH_PARENT
                         params.height = WindowManager.LayoutParams.MATCH_PARENT
+                        params.flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                     } else {
                         params.width = WindowManager.LayoutParams.WRAP_CONTENT
                         params.height = WindowManager.LayoutParams.WRAP_CONTENT
+                        params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                     }
                     windowManager.updateViewLayout(composeView, params)
                 }
@@ -131,7 +136,14 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
                 if (showCanvas) {
                     MainAppOverlay { LoveBrushRepository.showCanvas.value = false }
                 } else {
-                    FloatingBubble { LoveBrushRepository.showCanvas.value = true }
+                    FloatingBubble(
+                        onClick = { LoveBrushRepository.showCanvas.value = true },
+                        onDrag = { dx, dy ->
+                            params.x += dx.toInt()
+                            params.y += dy.toInt()
+                            windowManager.updateViewLayout(composeView, params)
+                        }
+                    )
                 }
             }
         }
@@ -148,7 +160,7 @@ class LoveBrushOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, 
 }
 
 @Composable
-fun FloatingBubble(onClick: () -> Unit) {
+fun FloatingBubble(onClick: () -> Unit, onDrag: (Float, Float) -> Unit) {
     val hasNewMessage by LoveBrushRepository.hasNewMessage.collectAsState()
     
     val infiniteTransition = rememberInfiniteTransition()
@@ -174,7 +186,18 @@ fun FloatingBubble(onClick: () -> Unit) {
                     colors = if (hasNewMessage) listOf(Color(0xFFFF8A80), Color(0xFFFF1744)) else listOf(Color(0xFFFF5252), Color(0xFFD50000))
                 )
             )
-            .clickable { onClick() }, // Keep it blinking until they actually open and view it!
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { 
+                    LoveBrushRepository.hasNewMessage.value = false
+                    onClick() 
+                })
+            }
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    onDrag(dragAmount.x, dragAmount.y)
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         Text(if (hasNewMessage) "💖" else "🖌️", fontSize = 28.sp)
@@ -250,7 +273,9 @@ fun TabButton(text: String, isSelected: Boolean, onClick: () -> Unit) {
 @Composable
 fun ComposeDrawView() {
     val receivedPaths by LoveBrushRepository.receivedPaths.collectAsState()
+    
     var currentPaths by remember { mutableStateOf<List<com.us.app.data.model.StrokePath>>(emptyList()) }
+    var undonePaths by remember { mutableStateOf<List<com.us.app.data.model.StrokePath>>(emptyList()) }
     var currentPath by remember { mutableStateOf<com.us.app.data.model.StrokePath?>(null) }
     
     // A massive expanded color palette!
@@ -286,7 +311,10 @@ fun ComposeDrawView() {
                         currentPath = currentPath?.copy(points = currentPath!!.points + com.us.app.data.model.Point(change.position.x, change.position.y)) 
                     },
                     onDragEnd = { 
-                        currentPath?.let { currentPaths = currentPaths + it }
+                        currentPath?.let { 
+                            currentPaths = currentPaths + it
+                            undonePaths = emptyList() // Clear redo stack on new draw
+                        }
                         currentPath = null 
                     }
                 )
@@ -323,25 +351,62 @@ fun ComposeDrawView() {
             }
         }
 
+        // Action Buttons Row (Undo/Redo/Clear)
+        Row(
+            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Undo Button
+            Surface(
+                shape = CircleShape, 
+                color = Color.White, 
+                shadowElevation = 8.dp,
+                modifier = Modifier.clickable(enabled = currentPaths.isNotEmpty()) { 
+                    if (currentPaths.isNotEmpty()) {
+                        undonePaths = undonePaths + currentPaths.last()
+                        currentPaths = currentPaths.dropLast(1)
+                    }
+                }
+            ) {
+                Text("↩️", modifier = Modifier.padding(12.dp), fontSize = 16.sp, color = if (currentPaths.isNotEmpty()) Color.Black else Color.LightGray)
+            }
+            
+            // Redo Button
+            Surface(
+                shape = CircleShape, 
+                color = Color.White, 
+                shadowElevation = 8.dp,
+                modifier = Modifier.clickable(enabled = undonePaths.isNotEmpty()) { 
+                    if (undonePaths.isNotEmpty()) {
+                        currentPaths = currentPaths + undonePaths.last()
+                        undonePaths = undonePaths.dropLast(1)
+                    }
+                }
+            ) {
+                Text("↪️", modifier = Modifier.padding(12.dp), fontSize = 16.sp, color = if (undonePaths.isNotEmpty()) Color.Black else Color.LightGray)
+            }
+            
+            // Clear Button
+            Surface(
+                shape = CircleShape, 
+                color = Color.White, 
+                shadowElevation = 8.dp,
+                modifier = Modifier.clickable { 
+                    currentPaths = emptyList() 
+                    undonePaths = emptyList()
+                    LoveBrushRepository.clearCanvasLocally()
+                }
+            ) {
+                Text("🧹", modifier = Modifier.padding(12.dp), fontSize = 16.sp)
+            }
+        }
+
         // Toolbar Bottom
         Column(
             modifier = Modifier.align(Alignment.BottomCenter).padding(24.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             
-            // Clear Button
-            Surface(
-                shape = RoundedCornerShape(50), 
-                color = Color.White, 
-                shadowElevation = 8.dp,
-                modifier = Modifier.clickable { 
-                    currentPaths = emptyList() 
-                    LoveBrushRepository.clearCanvasLocally()
-                }.padding(bottom = 16.dp).align(Alignment.End)
-            ) {
-                Text("🧹 Clear All", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), fontWeight = FontWeight.Bold, color = Color.Gray)
-            }
-
             // Scrollable Extended Color Palette
             Surface(
                 shape = RoundedCornerShape(50), 
@@ -372,6 +437,7 @@ fun ComposeDrawView() {
                     scope.launch { 
                         LoveBrushRepository.sendDrawing(currentPaths)
                         currentPaths = emptyList()
+                        undonePaths = emptyList()
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(60.dp).shadow(12.dp, RoundedCornerShape(50)),
